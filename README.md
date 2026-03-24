@@ -1,57 +1,90 @@
-# SQL Analytics Pack (Postgres) — Retail Sales Ops Dashboard Queries
+# SQL Analytics Pack (Postgres)
 
-This project demonstrates advanced SQL analytics for a retail sales dashboard using PostgreSQL. It includes schema creation, data loading, complex queries with joins, CTEs, window functions, and performance optimization.
+Retail Sales Ops Dashboard-style SQL project using a small synthetic dataset.
 
-## Dataset
+## Project Structure
 
-Sample data includes:
-- `customers.csv`: 50 customers with signup details
-- `orders.csv`: 80 orders with channel and status
-- `order_items.csv`: 80 order items with product details
+```
+sql-analytics-pack/
+  data/
+    customers.csv
+    orders.csv
+    order_items.csv
+  sql/
+    01_schema.sql
+    02_load.sql
+    03_analytics.sql
+    04_views.sql
+  docker-compose.yml
+  README.md
+  screenshots/
+  results/   (optional exports)
+```
+
+## Tech
+
+- PostgreSQL 16 (Docker)
+- SQL for analytics modeling (joins, CTEs, windows, ranking)
 
 ## How to Run
 
-1. Start PostgreSQL with Docker:
-   ```bash
-   docker compose up -d
-   ```
+1) Start Postgres:
 
-2. Connect to the database (host: localhost, port: 5432, db: retail, user: user, pass: pass)
+```bash
+docker compose up -d
+```
 
-3. Run the SQL scripts in order:
-   - `01_schema.sql` - Create tables
-   - `02_load.sql` - Load data
-   - `03_analytics.sql` - Run queries
-   - `04_views.sql` - Create views
+2) Connect from DBeaver (or `psql`) with:
 
-## Queries Implemented
+- Host: `localhost`
+- Port: `5432`
+- Database: `retail_analytics`
+- User: `analyst`
+- Password: `analyst123`
 
-- **Q1**: Daily revenue and order counts (paid orders only)
-- **Q2**: Revenue by channel with percentage share
-- **Q3**: Top 5 customers by Lifetime Value (LTV)
-- **Q4**: Customer repeat purchase rate
-- **Q5**: Product category revenue ranking
-- **Q6**: Customer activity periods (first/last order, days active)
-- **Q7**: 7-day moving average of daily revenue
-- **Q8**: Refund rates by sales channel
-- **Q9**: Average basket size and order value
-- **Q10**: Customer cohort analysis (month 0 revenue)
+3) Run SQL scripts in this order:
 
-## Screenshots
+```sql
+\i /workspace/sql/01_schema.sql
+\i /workspace/sql/02_load.sql
+\i /workspace/sql/03_analytics.sql
+\i /workspace/sql/04_views.sql
+```
 
-### Q1: Daily Revenue and Orders
-![Q1 Daily KPIs](screenshots/q1_daily_kpis.png)
+If using DBeaver, open each file and execute sequentially.
 
-### Q5: Category Revenue Ranking
-![Q5 Category Ranking](screenshots/q5_category_ranking.png)
+## Implemented Analytics Queries
 
-### Q7: 7-Day Moving Average
-![Q7 Moving Average](screenshots/q7_moving_average.png)
+- Q1: Daily revenue + order count (paid only)
+- Q2: Revenue by channel + percentage share
+- Q3: Top 5 customers by LTV
+- Q4: Repeat rate (`>=2` paid orders / total customers with paid orders)
+- Q5: Category revenue ranking (`DENSE_RANK`)
+- Q6: Customer first/last order + `days_active` (CTE)
+- Q7: 7-day moving average of daily revenue (window function)
+- Q8: Refund rate by channel
+- Q9: Basket metrics (avg items/order, avg order value)
+- Q10: Cohort month_0 revenue by signup month
+- Indexes + `EXPLAIN ANALYZE` for Q1 before/after index creation
+
+## Screenshots (DBeaver)
+
+Add screenshots here after running queries:
+
+- `screenshots/q1_daily_kpis.png`
+- `screenshots/q5_category_ranking.png`
+- `screenshots/q7_moving_average.png`
+
+## Optional Results Exports
+
+You can export result grids from DBeaver to:
+
+- `results/q1_daily_kpis.csv`
+- `results/q5_category_ranking.csv`
+- `results/q7_moving_average.csv`
 
 ## What This Demonstrates
 
-- **Joins**: Multi-table joins for complex aggregations
-- **CTEs**: Common Table Expressions for readable subqueries
-- **Window Functions**: RANK(), AVG() OVER() for advanced analytics
-- **Performance**: Index creation and EXPLAIN ANALYZE for optimization
-- **Views**: Pre-computed views for dashboard efficiency
+- **Joins:** combining transactional orders and line-item detail with customer dimensions
+- **CTEs:** modular query construction for repeat rates, cohorts, and customer lifecycle metrics
+- **Window functions:** moving averages and dense ranking for operational trends and category performance

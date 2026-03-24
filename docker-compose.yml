@@ -1,14 +1,19 @@
-version: '3.8'
+version: "3.9"
 
 services:
   postgres:
-    image: postgres:15
+    image: postgres:16
+    container_name: sql_analytics_pg
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: retail
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: retail_analytics
+      POSTGRES_USER: analyst
+      POSTGRES_PASSWORD: analyst123
     ports:
       - "5432:5432"
     volumes:
-      - ./data:/data
-      - ./sql:/sql
+      - pgdata:/var/lib/postgresql/data
+      - ./:/workspace
+
+volumes:
+  pgdata:

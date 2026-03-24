@@ -1,79 +1,76 @@
--- Analytics queries for retail sales dashboard
+-- 03_analytics.sql
+-- Retail Sales Ops Dashboard queries.
 
 -- Q1: Daily revenue + orders count (only paid)
 SELECT
-    order_date,
-    COUNT(*) AS orders_count,
-    SUM(total) AS revenue
-FROM (
-    SELECT
-        o.order_id,
-        o.order_date,
-        SUM(oi.qty * oi.unit_price) AS total
-    FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
-    WHERE o.status = 'paid'
-    GROUP BY o.order_id, o.order_date
-) t
-GROUP BY order_date
-ORDER BY order_date;
+    o.order_date,
+    COUNT(DISTINCT o.order_id) AS orders_count,
+    ROUND(SUM(oi.qty * oi.unit_price), 2) AS daily_revenue
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+WHERE o.status = 'paid'
+GROUP BY o.order_date
+ORDER BY o.order_date;
 
 -- Q2: Revenue by channel + % share
-WITH channel_rev AS (
+WITH channel_revenue AS (
     SELECT
         o.channel,
         SUM(oi.qty * oi.unit_price) AS revenue
     FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN order_items oi ON oi.order_id = o.order_id
     WHERE o.status = 'paid'
     GROUP BY o.channel
-),
-total_rev AS (
-    SELECT SUM(revenue) AS total FROM channel_rev
 )
 SELECT
-    cr.channel,
-    cr.revenue,
-    ROUND(100.0 * cr.revenue / tr.total, 2) AS pct_share
-FROM channel_rev cr, total_rev tr
-ORDER BY cr.revenue DESC;
+    channel,
+    ROUND(revenue, 2) AS revenue,
+    ROUND(100.0 * revenue / SUM(revenue) OVER (), 2) AS revenue_share_pct
+FROM channel_revenue
+ORDER BY revenue DESC;
 
 -- Q3: Top 5 customers by LTV (sum paid)
 SELECT
     c.customer_id,
     c.name,
-    SUM(oi.qty * oi.unit_price) AS ltv
+    ROUND(SUM(oi.qty * oi.unit_price), 2) AS ltv
 FROM customers c
-JOIN orders o ON c.customer_id = o.customer_id
-JOIN order_items oi ON o.order_id = oi.order_id
+JOIN orders o ON o.customer_id = c.customer_id
+JOIN order_items oi ON oi.order_id = o.order_id
 WHERE o.status = 'paid'
 GROUP BY c.customer_id, c.name
 ORDER BY ltv DESC
 LIMIT 5;
 
--- Q4: Repeat rate: customers with ≥2 paid orders / total
-WITH paid_customers AS (
+-- Q4: Repeat rate: customers with >=2 paid orders / total
+WITH paid_order_counts AS (
     SELECT
         customer_id,
-        COUNT(*) AS order_count
+        COUNT(*) AS paid_orders
     FROM orders
     WHERE status = 'paid'
     GROUP BY customer_id
 )
 SELECT
-    ROUND(100.0 * COUNT(CASE WHEN order_count >= 2 THEN 1 END) / COUNT(*), 2) AS repeat_rate
-FROM paid_customers;
+    ROUND(
+        COUNT(*) FILTER (WHERE paid_orders >= 2)::NUMERIC
+        / NULLIF(COUNT(*), 0),
+        4
+    ) AS repeat_rate
+FROM paid_order_counts;
 
 -- Q5: Category revenue ranking (DENSE_RANK)
 SELECT
-    category,
-    SUM(oi.qty * oi.unit_price) AS revenue,
-    DENSE_RANK() OVER (ORDER BY SUM(oi.qty * oi.unit_price) DESC) AS rank
-FROM order_items oi
-JOIN orders o ON oi.order_id = o.order_id
+    oi.category,
+    ROUND(SUM(oi.qty * oi.unit_price), 2) AS category_revenue,
+    DENSE_RANK() OVER (
+        ORDER BY SUM(oi.qty * oi.unit_price) DESC
+    ) AS revenue_rank
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
 WHERE o.status = 'paid'
-GROUP BY category
-ORDER BY rank;
+GROUP BY oi.category
+ORDER BY revenue_rank, oi.category;
 
 -- Q6: For each customer: first_order_date, last_order_date, days_active (CTE)
 WITH customer_orders AS (
@@ -83,8 +80,7 @@ WITH customer_orders AS (
         MIN(o.order_date) AS first_order_date,
         MAX(o.order_date) AS last_order_date
     FROM customers c
-    JOIN orders o ON c.customer_id = o.customer_id
-    WHERE o.status = 'paid'
+    LEFT JOIN orders o ON o.customer_id = c.customer_id
     GROUP BY c.customer_id, c.name
 )
 SELECT
@@ -92,102 +88,135 @@ SELECT
     name,
     first_order_date,
     last_order_date,
-    last_order_date - first_order_date AS days_active
+    CASE
+        WHEN first_order_date IS NULL THEN 0
+        ELSE (last_order_date - first_order_date)
+    END AS days_active
 FROM customer_orders
 ORDER BY customer_id;
 
 -- Q7: 7-day moving average of daily revenue (window)
 WITH daily_revenue AS (
     SELECT
-        order_date,
-        SUM(total) AS revenue
-    FROM (
-        SELECT
-            o.order_id,
-            o.order_date,
-            SUM(oi.qty * oi.unit_price) AS total
-        FROM orders o
-        JOIN order_items oi ON o.order_id = oi.order_id
-        WHERE o.status = 'paid'
-        GROUP BY o.order_id, o.order_date
-    ) t
-    GROUP BY order_date
+        o.order_date,
+        SUM(oi.qty * oi.unit_price) AS revenue
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.order_id
+    WHERE o.status = 'paid'
+    GROUP BY o.order_date
 )
 SELECT
     order_date,
-    revenue,
-    ROUND(AVG(revenue) OVER (ORDER BY order_date ROWS 6 PRECEDING), 2) AS ma7
+    ROUND(revenue, 2) AS revenue,
+    ROUND(
+        AVG(revenue) OVER (
+            ORDER BY order_date
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+        ),
+        2
+    ) AS moving_avg_7d
 FROM daily_revenue
 ORDER BY order_date;
 
 -- Q8: Refund rate by channel (refunded / total)
 SELECT
     channel,
-    COUNT(*) AS total_orders,
-    SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refunded_orders,
-    ROUND(100.0 * SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) / COUNT(*), 2) AS refund_rate
+    ROUND(
+        COUNT(*) FILTER (WHERE status = 'refunded')::NUMERIC
+        / NULLIF(COUNT(*), 0),
+        4
+    ) AS refund_rate
 FROM orders
 GROUP BY channel
 ORDER BY channel;
 
 -- Q9: Basket size distribution: avg items/order, avg order value
-SELECT
-    ROUND(AVG(item_count), 2) AS avg_items_per_order,
-    ROUND(AVG(order_value), 2) AS avg_order_value
-FROM (
+WITH order_metrics AS (
     SELECT
         o.order_id,
-        COUNT(oi.*) AS item_count,
+        SUM(oi.qty) AS total_items,
         SUM(oi.qty * oi.unit_price) AS order_value
     FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN order_items oi ON oi.order_id = o.order_id
     WHERE o.status = 'paid'
     GROUP BY o.order_id
-) t;
-
--- Q10: Cohort: signup_month → month_0 revenue (simple cohort)
-WITH cohorts AS (
-    SELECT
-        customer_id,
-        DATE_TRUNC('month', signup_date) AS signup_month
-    FROM customers
-),
-cohort_revenue AS (
-    SELECT
-        c.signup_month,
-        DATE_TRUNC('month', o.order_date) AS order_month,
-        SUM(oi.qty * oi.unit_price) AS revenue
-    FROM cohorts c
-    JOIN orders o ON c.customer_id = o.customer_id
-    JOIN order_items oi ON o.order_id = oi.order_id
-    WHERE o.status = 'paid'
-    GROUP BY c.signup_month, DATE_TRUNC('month', o.order_date)
 )
 SELECT
-    signup_month,
-    COALESCE(SUM(CASE WHEN order_month = signup_month THEN revenue END), 0) AS month_0_revenue
-FROM cohort_revenue
-GROUP BY signup_month
-ORDER BY signup_month;
+    ROUND(AVG(total_items), 2) AS avg_items_per_order,
+    ROUND(AVG(order_value), 2) AS avg_order_value
+FROM order_metrics;
 
--- Add indexes for Q1
-CREATE INDEX idx_orders_date_status ON orders(order_date, status);
+-- Q10: Cohort: signup_month -> month_0 revenue (simple cohort)
+WITH customer_cohort AS (
+    SELECT
+        customer_id,
+        DATE_TRUNC('month', signup_date)::DATE AS signup_month
+    FROM customers
+),
+month0_orders AS (
+    SELECT
+        c.signup_month,
+        o.order_id
+    FROM customer_cohort c
+    JOIN orders o ON o.customer_id = c.customer_id
+    WHERE o.status = 'paid'
+      AND DATE_TRUNC('month', o.order_date)::DATE = c.signup_month
+)
+SELECT
+    m.signup_month,
+    ROUND(SUM(oi.qty * oi.unit_price), 2) AS month_0_revenue
+FROM month0_orders m
+JOIN order_items oi ON oi.order_id = m.order_id
+GROUP BY m.signup_month
+ORDER BY m.signup_month;
 
--- EXPLAIN ANALYZE for Q1 (run after index)
+-- ------------------------------------------------------------
+-- Index tuning + EXPLAIN ANALYZE for Q1 (before and after)
+-- ------------------------------------------------------------
+
+-- Ensure "before" run does not use previous custom indexes.
+DROP INDEX IF EXISTS idx_orders_status_order_date;
+DROP INDEX IF EXISTS idx_order_items_order_id;
+DROP INDEX IF EXISTS idx_orders_channel_status;
+DROP INDEX IF EXISTS idx_orders_customer_status_date;
+DROP INDEX IF EXISTS idx_customers_signup_month;
+
+-- Q1 execution plan BEFORE indexes
 EXPLAIN ANALYZE
 SELECT
-    order_date,
-    COUNT(*) AS orders_count,
-    SUM(total) AS revenue
-FROM (
-    SELECT
-        o.order_id,
-        o.order_date,
-        SUM(oi.qty * oi.unit_price) AS total
-    FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
-    WHERE o.status = 'paid'
-    GROUP BY o.order_id, o.order_date
-) t
-GROUP BY order_date
-ORDER BY order_date;
+    o.order_date,
+    COUNT(DISTINCT o.order_id) AS orders_count,
+    SUM(oi.qty * oi.unit_price) AS daily_revenue
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+WHERE o.status = 'paid'
+GROUP BY o.order_date
+ORDER BY o.order_date;
+
+-- Add indexes used by dashboard patterns.
+CREATE INDEX IF NOT EXISTS idx_orders_status_order_date
+    ON orders (status, order_date);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id
+    ON order_items (order_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_channel_status
+    ON orders (channel, status);
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer_status_date
+    ON orders (customer_id, status, order_date);
+
+CREATE INDEX IF NOT EXISTS idx_customers_signup_month
+    ON customers (signup_date);
+
+-- Q1 execution plan AFTER indexes
+EXPLAIN ANALYZE
+SELECT
+    o.order_date,
+    COUNT(DISTINCT o.order_id) AS orders_count,
+    SUM(oi.qty * oi.unit_price) AS daily_revenue
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+WHERE o.status = 'paid'
+GROUP BY o.order_date
+ORDER BY o.order_date;

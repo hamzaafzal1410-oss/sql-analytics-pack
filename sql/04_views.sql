@@ -1,31 +1,38 @@
--- Create views for dashboard
+-- 04_views.sql
+-- Reusable views for dashboarding.
+
+DROP VIEW IF EXISTS vw_daily_kpis;
+DROP VIEW IF EXISTS vw_customer_ltv;
 
 CREATE VIEW vw_daily_kpis AS
 SELECT
-    order_date,
-    COUNT(*) AS orders_count,
-    SUM(total) AS revenue
-FROM (
-    SELECT
-        o.order_id,
-        o.order_date,
-        SUM(oi.qty * oi.unit_price) AS total
-    FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
-    WHERE o.status = 'paid'
-    GROUP BY o.order_id, o.order_date
-) t
-GROUP BY order_date
-ORDER BY order_date;
+    o.order_date,
+    COUNT(DISTINCT o.order_id) FILTER (WHERE o.status = 'paid') AS paid_orders,
+    ROUND(
+        SUM(
+            CASE WHEN o.status = 'paid' THEN oi.qty * oi.unit_price ELSE 0 END
+        ),
+        2
+    ) AS paid_revenue,
+    COUNT(DISTINCT o.order_id) FILTER (WHERE o.status = 'refunded') AS refunded_orders
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.order_id
+GROUP BY o.order_date
+ORDER BY o.order_date;
 
 CREATE VIEW vw_customer_ltv AS
 SELECT
     c.customer_id,
     c.name,
-    SUM(oi.qty * oi.unit_price) AS ltv
+    c.city,
+    ROUND(
+        COALESCE(
+            SUM(CASE WHEN o.status = 'paid' THEN oi.qty * oi.unit_price END),
+            0
+        ),
+        2
+    ) AS ltv
 FROM customers c
-JOIN orders o ON c.customer_id = o.customer_id
-JOIN order_items oi ON o.order_id = oi.order_id
-WHERE o.status = 'paid'
-GROUP BY c.customer_id, c.name
-ORDER BY ltv DESC;
+LEFT JOIN orders o ON o.customer_id = c.customer_id
+LEFT JOIN order_items oi ON oi.order_id = o.order_id
+GROUP BY c.customer_id, c.name, c.city;
