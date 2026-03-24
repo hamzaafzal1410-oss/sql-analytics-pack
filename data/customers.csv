@@ -1,0 +1,51 @@
+customer_id,name,city,signup_date
+1,Customer_1,New York,2020-01-15
+2,Customer_2,London,2020-02-20
+3,Customer_3,Paris,2020-03-10
+4,Customer_4,Berlin,2020-04-05
+5,Customer_5,Tokyo,2020-05-12
+6,Customer_6,Sydney,2020-06-18
+7,Customer_7,Toronto,2020-07-22
+8,Customer_8,Mumbai,2020-08-30
+9,Customer_9,Sao Paulo,2020-09-14
+10,Customer_10,Mexico City,2020-10-08
+11,Customer_11,Amsterdam,2020-11-25
+12,Customer_12,Barcelona,2020-12-03
+13,Customer_13,Vienna,2021-01-17
+14,Customer_14,Prague,2021-02-28
+15,Customer_15,Budapest,2021-03-09
+16,Customer_16,Stockholm,2021-04-21
+17,Customer_17,Oslo,2021-05-06
+18,Customer_18,Copenhagen,2021-06-13
+19,Customer_19,Helsinki,2021-07-29
+20,Customer_20,Warsaw,2021-08-11
+21,Customer_21,Athens,2021-09-04
+22,Customer_22,Rome,2021-10-19
+23,Customer_23,Madrid,2021-11-07
+24,Customer_24,Lisbon,2021-12-15
+25,Customer_25,Dublin,2022-01-23
+26,Customer_26,Edinburgh,2022-02-14
+27,Customer_27,Brussels,2022-03-27
+28,Customer_28,Zurich,2022-04-09
+29,Customer_29,Geneva,2022-05-16
+30,Customer_30,Vancouver,2022-06-02
+31,Customer_31,Montreal,2022-07-18
+32,Customer_32,Boston,2022-08-25
+33,Customer_33,Chicago,2022-09-12
+34,Customer_34,Los Angeles,2022-10-30
+35,Customer_35,San Francisco,2022-11-08
+36,Customer_36,Seattle,2022-12-21
+37,Customer_37,Denver,2023-01-04
+38,Customer_38,Austin,2023-02-17
+39,Customer_39,Miami,2023-03-22
+40,Customer_40,Atlanta,2023-04-11
+41,Customer_41,Nashville,2023-05-28
+42,Customer_42,New Orleans,2023-06-15
+43,Customer_43,Phoenix,2023-07-03
+44,Customer_44,Salt Lake City,2023-08-19
+45,Customer_45,Portland,2023-09-26
+46,Customer_46,Las Vegas,2023-10-14
+47,Customer_47,Honolulu,2023-11-01
+48,Customer_48,Anchorage,2023-12-08
+49,Customer_49,Juneau,2023-12-25
+50,Customer_50,Fairbanks,2023-12-31
